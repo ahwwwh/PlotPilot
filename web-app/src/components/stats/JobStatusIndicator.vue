@@ -28,6 +28,8 @@ import { NCard, NProgress, NButton, NSpin } from 'naive-ui'
 import { jobApi } from '@/api/book'
 import type { JobStatusResponse } from '@/types/api'
 
+const POLL_INTERVAL_MS = 3000
+
 interface Props {
   jobId: string
 }
@@ -53,11 +55,22 @@ const jobTypeLabel = computed(() => {
 
 const calculateProgress = (): number => {
   if (!status.value) return 0
-  // Simple progress calculation based on status
-  if (status.value.status === 'queued') return 10
-  if (status.value.status === 'running') return 50
-  if (status.value.status === 'done') return 100
-  return 0
+  if (status.value.done) return 100
+
+  // Use phase if available for more accurate progress
+  if (status.value.phase) {
+    const phaseProgress: Record<string, number> = {
+      'queued': 10,
+      'planning': 30,
+      'writing': 60,
+      'reviewing': 80,
+      'running': 50
+    }
+    return phaseProgress[status.value.phase] || 50
+  }
+
+  // Fallback to simple status-based progress
+  return status.value.status === 'queued' ? 10 : 50
 }
 
 const pollStatus = async () => {
@@ -85,17 +98,21 @@ const stopPolling = () => {
 const handleCancel = async () => {
   if (!props.jobId) return
 
+  // Stop polling optimistically
+  stopPolling()
+
   try {
     await jobApi.cancelJob(props.jobId)
-    stopPolling()
   } catch (error) {
     console.error('Failed to cancel job:', error)
+    window.$message?.error('取消任务失败，请稍后重试')
+    // Don't restart polling - user intended to cancel
   }
 }
 
 onMounted(() => {
   pollStatus()
-  pollInterval = window.setInterval(pollStatus, 3000)
+  pollInterval = window.setInterval(pollStatus, POLL_INTERVAL_MS)
 })
 
 onUnmounted(() => {
