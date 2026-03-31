@@ -27,7 +27,6 @@ from pydantic import BaseModel, Field
 
 from ..clients.llm import LLMClient
 from ..config import Config
-from ..pipeline.confirm import estimate_chapter_llm_calls
 from ..story.chapter_fs import (
     chapter_content_dir,
     chapter_has_deliverable,
@@ -187,31 +186,6 @@ class AppendEventPayload(BaseModel):
 
 class DigestPayload(BaseModel):
     force: bool = True
-
-
-def _estimate_run_stats(root: Path) -> dict:
-    paths = project_paths(root)
-    man = load_manifest_engine(paths["manifest"])
-    if not man:
-        return {
-            "target_chapters": 0,
-            "chapter_hi": 0,
-            "remaining": 0,
-            "approx_calls_run": 0,
-        }
-    chapter_hi = man.target_chapter_count
-    if paths["outline"].is_file():
-        ol = load_outline(paths["outline"])
-        if ol and ol.chapters:
-            chapter_hi = max(c.id for c in ol.chapters)
-    remaining = sum(1 for i in range(1, chapter_hi + 1) if not man.is_chapter_done(i))
-    approx = estimate_chapter_llm_calls(remaining) + 1 if remaining else 1
-    return {
-        "target_chapters": man.target_chapter_count,
-        "chapter_hi": chapter_hi,
-        "remaining": remaining,
-        "approx_calls_run": approx,
-    }
 
 
 # 首页现在由Vue前端StaticFiles处理
