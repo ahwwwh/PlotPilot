@@ -4,13 +4,7 @@
 import asyncio
 import httpx
 import json
-import sys
 from datetime import datetime
-
-# Fix Windows console encoding
-if sys.platform == 'win32':
-    sys.stdout.reconfigure(encoding='utf-8')
-    sys.stderr.reconfigure(encoding='utf-8')
 
 async def generate_batch(from_ch: int, to_ch: int):
     url = "http://localhost:8007/api/v1/novels/novel-1775066530753/hosted-write-stream"
@@ -30,7 +24,7 @@ async def generate_batch(from_ch: int, to_ch: int):
         async with client.stream("POST", url, json=payload) as response:
             if response.status_code != 200:
                 text = await response.aread()
-                print(f"❌ Error: {text.decode()}")
+                print(f"ERROR: {text.decode()}")
                 return False
 
             current_chapter = None
@@ -42,7 +36,7 @@ async def generate_batch(from_ch: int, to_ch: int):
 
                         if event_type == "chapter_start":
                             current_chapter = event.get("chapter")
-                            print(f"\n📝 Chapter {current_chapter} - Starting...")
+                            print(f"\nChapter {current_chapter} - Starting...")
 
                         elif event_type == "outline":
                             print(f"   Outline generated")
@@ -53,27 +47,27 @@ async def generate_batch(from_ch: int, to_ch: int):
 
                         elif event_type == "done":
                             word_count = len(event.get("content", ""))
-                            print(f"   ✅ Generated: ~{word_count} characters")
+                            print(f"   DONE: ~{word_count} characters")
 
                         elif event_type == "saved":
                             if event.get("ok"):
-                                print(f"   💾 Saved successfully")
+                                print(f"   SAVED successfully")
                             else:
-                                print(f"   ⚠️  Save failed: {event.get('message')}")
+                                print(f"   SAVE FAILED: {event.get('message')}")
 
                         elif event_type == "error":
-                            print(f"   ❌ Error: {event.get('message')}")
+                            print(f"   ERROR: {event.get('message')}")
                             return False
 
                     except json.JSONDecodeError:
                         pass
 
-    print(f"\n✅ Batch {from_ch}-{to_ch} completed!\n")
+    print(f"\nBatch {from_ch}-{to_ch} completed!\n")
     return True
 
 async def main():
     print("\n" + "="*60)
-    print("🚀 Automated Chapter Generation System")
+    print("Automated Chapter Generation System")
     print("="*60)
 
     # Generate in batches of 10 chapters
@@ -92,14 +86,14 @@ async def main():
     for from_ch, to_ch in batches:
         success = await generate_batch(from_ch, to_ch)
         if not success:
-            print(f"\n⚠️  Batch {from_ch}-{to_ch} failed. Stopping.")
+            print(f"\nBatch {from_ch}-{to_ch} failed. Stopping.")
             break
 
         # Small delay between batches
         await asyncio.sleep(2)
 
     print("\n" + "="*60)
-    print("🎉 All batches completed!")
+    print("All batches completed!")
     print("="*60 + "\n")
 
 if __name__ == "__main__":

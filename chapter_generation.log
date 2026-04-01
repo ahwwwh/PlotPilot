@@ -1,0 +1,12 @@
+
+============================================================
+Traceback (most recent call last):
+  File "D:\CODE\aitext\generate_all_chapters.py", line 99, in <module>
+    asyncio.run(main())
+  File "D:\ENV\python39\lib\asyncio\runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "D:\ENV\python39\lib\asyncio\base_events.py", line 642, in run_until_complete
+    return future.result()
+  File "D:\CODE\aitext\generate_all_chapters.py", line 69, in main
+    print("\U0001f680 Automated Chapter Generation System")
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f680' in position 0: illegal multibyte sequence
