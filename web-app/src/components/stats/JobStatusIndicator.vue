@@ -25,8 +25,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { NCard, NProgress, NButton, NSpin } from 'naive-ui'
-import { jobApi } from '@/api/book'
-import type { JobStatusResponse } from '@/types/api'
+import { workflowApi } from '../../api/workflow'
+import type { JobStatusResponse } from '../../types/api'
 
 const POLL_INTERVAL_MS = 3000
 
@@ -75,7 +75,7 @@ const calculateProgress = (): number => {
 
 const pollStatus = async () => {
   try {
-    const result = await jobApi.getStatus(props.jobId)
+    const result = await workflowApi.getJobStatus(props.jobId)
     status.value = result
 
     if (result.done) {
@@ -102,7 +102,7 @@ const handleCancel = async () => {
   stopPolling()
 
   try {
-    await jobApi.cancelJob(props.jobId)
+    await workflowApi.cancelJob(props.jobId)
   } catch (error) {
     console.error('Failed to cancel job:', error)
     window.$message?.error('取消任务失败，请稍后重试')

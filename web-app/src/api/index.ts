@@ -4,6 +4,7 @@ export * from './novel'
 export * from './chapter'
 export * from './bible'
 export * from './ai'
+export * from './workflow'
 
 // Legacy API exports
 export * from './book'

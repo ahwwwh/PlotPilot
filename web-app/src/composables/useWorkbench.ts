@@ -1,7 +1,7 @@
 import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
-import { jobApi } from '../api/book'
+import { workflowApi } from '../api/workflow'
 import { novelApi } from '../api/novel'
 import { chapterApi } from '../api/chapter'
 import { useStatsStore } from '../stores/statsStore'
@@ -129,7 +129,7 @@ export function useWorkbench(options: UseWorkbenchOptions) {
   const confirmPlan = async () => {
     showPlanModal.value = false
     try {
-      const res = await jobApi.startPlan(slug, planDryRun.value, planMode.value)
+      const res = await workflowApi.startPlanJob(slug, planDryRun.value, planMode.value)
       startPolling(res.job_id)
     } catch (error: any) {
       message.error(error.response?.data?.detail || '启动失败')
@@ -138,7 +138,7 @@ export function useWorkbench(options: UseWorkbenchOptions) {
 
   const startWrite = async () => {
     try {
-      const res = await jobApi.startWrite(slug, DEFAULT_CHAPTER_ID)
+      const res = await workflowApi.startWriteJob(slug, DEFAULT_CHAPTER_ID)
       startPolling(res.job_id)
     } catch (error: any) {
       message.error(error.response?.data?.detail || '启动失败')
@@ -166,7 +166,7 @@ export function useWorkbench(options: UseWorkbenchOptions) {
       bump = Math.min(PROGRESS_MAX, bump + PROGRESS_MIN_STEP + Math.random() * PROGRESS_MAX_STEP)
       taskProgress.value = Math.floor(bump)
       try {
-        const status = await jobApi.getStatus(jobId)
+        const status = await workflowApi.getJobStatus(jobId)
         taskMessage.value = status.message || status.phase || '执行中…'
 
         if (status.status === 'done') {
@@ -195,7 +195,7 @@ export function useWorkbench(options: UseWorkbenchOptions) {
     const jid = currentJobId.value
     if (!jid) return
     try {
-      await jobApi.cancelJob(jid)
+      await workflowApi.cancelJob(jid)
       taskMessage.value = '正在终止…'
     } catch (error: any) {
       message.error(error?.response?.data?.detail || '终止失败')

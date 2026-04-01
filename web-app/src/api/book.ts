@@ -28,7 +28,7 @@ import type {
 // - bookApi: BiblePanel.vue, CastGraphCompact.vue, KnowledgePanel.vue,
 //            KnowledgeTripleGraph.vue, useWorkbench.ts, Cast.vue, Chapter.vue
 // - chatApi: ChatArea.vue
-// - jobApi: JobStatusIndicator.vue, useWorkbench.ts
+// - jobApi: 已迁移至 api/workflow.ts（workflowApi）
 //
 // For new code, use the RESTful API clients:
 // - novelApi from './novel.ts' for novel operations

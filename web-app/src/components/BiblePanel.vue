@@ -244,7 +244,7 @@ const syncJsonFromState = () => {
 
 const load = async () => {
   try {
-    const b = await bookApi.getBible(props.slug)
+    const b = await bibleApi.getBible(props.slug)
     state.value = {
       characters: Array.isArray(b.characters)
         ? b.characters.map((x: any) => ({
