@@ -5,14 +5,12 @@ import Chapter from '../views/Chapter.vue'
 import Cast from '../views/Cast.vue'
 import CharacterGraph from '../views/CharacterGraph.vue'
 import LocationGraph from '../views/LocationGraph.vue'
-import AutopilotMonitor from '../views/AutopilotMonitor.vue'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'Home', component: Home },
     { path: '/book/:slug/workbench', name: 'Workbench', component: Workbench },
-    { path: '/book/:slug/autopilot', name: 'AutopilotMonitor', component: AutopilotMonitor },
     { path: '/book/:slug/cast', name: 'Cast', component: Cast },
     { path: '/book/:slug/chapter/:id', name: 'Chapter', component: Chapter },
     { path: '/book/:slug/characters', name: 'CharacterGraph', component: CharacterGraph },

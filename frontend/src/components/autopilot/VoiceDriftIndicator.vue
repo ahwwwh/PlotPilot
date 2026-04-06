@@ -258,8 +258,8 @@ onUnmounted(() => {
 
 <style scoped>
 .voice-drift-indicator {
-  background: #0d0d0d;
-  border: 1px solid #1a1a1a;
+  background: var(--card-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 12px;
 }
@@ -274,7 +274,7 @@ onUnmounted(() => {
 .indicator-title {
   font-size: 13px;
   font-weight: 600;
-  color: #c8c8c8;
+  color: var(--text-color-1);
 }
 
 .indicator-body {
@@ -304,7 +304,7 @@ onUnmounted(() => {
 .drift-score {
   font-size: 16px;
   font-weight: 600;
-  color: #c8c8c8;
+  color: var(--text-color-1);
   font-variant-numeric: tabular-nums;
 }
 

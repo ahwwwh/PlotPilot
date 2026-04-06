@@ -17,8 +17,11 @@
       <AutopilotPanel :novel-id="slug" @status-change="handleAutopilotStatusChange" />
     </div>
 
-    <div class="work-main">
-      <div v-if="currentChapter" class="chapter-editor">
+    <!-- 主工作区 Tab -->
+    <n-tabs v-model:value="activeTab" type="line" animated class="work-tabs">
+      <n-tab-pane name="editor" tab="📝 章节编辑">
+        <div class="work-main">
+          <div v-if="currentChapter" class="chapter-editor">
         <div class="editor-header">
           <div class="editor-title">
             <h3>{{ currentChapter.title || `第${currentChapter.number}章` }}</h3>
@@ -73,7 +76,15 @@
       </div>
 
       <n-empty v-else description="请从左侧选择章节" class="work-empty" />
-    </div>
+        </div>
+      </n-tab-pane>
+
+      <n-tab-pane name="monitor" tab="📊 监控大盘">
+        <div class="monitor-container">
+          <AutopilotDashboard :novel-id="slug" />
+        </div>
+      </n-tab-pane>
+    </n-tabs>
 
     <!-- AI 生成本章弹窗 -->
     <n-modal
@@ -331,6 +342,7 @@ import { tensionApi } from '../../api/tools'
 import type { TensionDiagnosis } from '../../api/tools'
 import GenerateChapterWorkflowModal from './GenerateChapterWorkflowModal.vue'
 import AutopilotPanel from '../autopilot/AutopilotPanel.vue'
+import AutopilotDashboard from '../autopilot/AutopilotDashboard.vue'
 
 interface Chapter {
   id: number
@@ -363,6 +375,9 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
+
+// Tab 状态
+const activeTab = ref('editor')
 
 const showWorkflowModal = ref(false)
 const showGenerateModal = ref(false)
@@ -649,6 +664,31 @@ const stopGenerate = () => {
   padding: 16px 20px;
   background: linear-gradient(to bottom, var(--app-surface) 0%, rgba(24, 160, 88, 0.02) 100%);
   border-bottom: 1px solid var(--aitext-split-border);
+}
+
+.work-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.work-tabs :deep(.n-tabs-nav) {
+  padding: 0 20px;
+  background: var(--app-surface);
+}
+
+.work-tabs :deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.monitor-container {
+  height: 100%;
+  padding: 20px;
+  overflow-y: auto;
+  background: var(--app-surface);
 }
 
 .work-main {

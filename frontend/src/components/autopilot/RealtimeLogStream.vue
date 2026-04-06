@@ -1,11 +1,12 @@
 <template>
-  <div class="realtime-log-stream">
-    <!-- 顶部状态栏 -->
-    <div class="stream-header">
-      <span class="status-dot" :class="connectionStatus"></span>
-      <span class="status-text">{{ statusText }}</span>
-      <span class="log-count">{{ logEvents.length }} 条日志</span>
-    </div>
+  <n-card title="📡 实时日志" size="small" :bordered="true">
+    <template #header-extra>
+      <n-space :size="8" align="center">
+        <span class="status-dot" :class="connectionStatus"></span>
+        <n-text depth="3" style="font-size: 12px">{{ statusText }}</n-text>
+        <n-tag size="tiny" :bordered="false">{{ logEvents.length }} 条</n-tag>
+      </n-space>
+    </template>
 
     <!-- 日志流容器 -->
     <div ref="scrollContainer" class="stream-body" @scroll="handleScroll">
@@ -45,7 +46,7 @@
         <span class="new-logs-text">新日志</span>
       </div>
     </transition>
-  </div>
+  </n-card>
 </template>
 
 <script setup lang="ts">
@@ -253,8 +254,8 @@ onUnmounted(() => {
 <style scoped>
 .realtime-log-stream {
   position: relative;
-  background: #0d0d0d;
-  border: 1px solid #1a1a1a;
+  background: var(--card-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   font-family: 'Courier New', 'Consolas', monospace;
@@ -266,10 +267,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  background: #111;
-  border-bottom: 1px solid #1a1a1a;
+  background: var(--card-color);
+  border-bottom: 1px solid var(--border-color);
   font-size: 12px;
-  color: #888;
+  color: var(--text-color-2);
 }
 
 .status-dot {
@@ -281,7 +282,7 @@ onUnmounted(() => {
 
 .status-dot.connected {
   background: #18a058;
-  box-shadow: 0 0 8px #18a058;
+  box-shadow: 0 0 8px rgba(24, 160, 88, 0.5);
   animation: pulse-green 2s infinite;
 }
 
@@ -305,13 +306,13 @@ onUnmounted(() => {
 }
 
 .status-text {
-  color: #aaa;
+  color: var(--text-color-2);
   font-weight: 500;
 }
 
 .log-count {
   margin-left: auto;
-  color: #555;
+  color: var(--text-color-3);
   font-size: 11px;
 }
 
@@ -328,16 +329,16 @@ onUnmounted(() => {
 }
 
 .stream-body::-webkit-scrollbar-track {
-  background: #0d0d0d;
+  background: var(--scrollbar-color);
 }
 
 .stream-body::-webkit-scrollbar-thumb {
-  background: #333;
+  background: var(--scrollbar-color-hover);
   border-radius: 3px;
 }
 
 .stream-body::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: var(--scrollbar-color-hover);
 }
 
 /* Timeline 样式覆盖 */
@@ -351,7 +352,7 @@ onUnmounted(() => {
 
 .stream-body :deep(.n-timeline-item__timeline) {
   width: 2px;
-  background: #1a1a1a;
+  background: var(--border-color);
 }
 
 .event-icon {
@@ -367,12 +368,12 @@ onUnmounted(() => {
 .event-message {
   font-size: 13px;
   line-height: 1.6;
-  color: #c8c8c8;
+  color: var(--text-color-1);
 }
 
 .event-metadata {
   font-size: 11px;
-  color: #666;
+  color: var(--text-color-3);
   font-family: 'Courier New', monospace;
 }
 
@@ -388,7 +389,7 @@ onUnmounted(() => {
   background: rgba(24, 160, 88, 0.9);
   border-radius: 20px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: all 0.3s;
   z-index: 10;
 }
@@ -396,7 +397,7 @@ onUnmounted(() => {
 .new-logs-indicator:hover {
   background: rgba(24, 160, 88, 1);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .new-logs-text {

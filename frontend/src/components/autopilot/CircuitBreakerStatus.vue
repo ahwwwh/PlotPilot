@@ -313,8 +313,8 @@ onUnmounted(() => {
 
 <style scoped>
 .circuit-breaker-status {
-  background: #0d0d0d;
-  border: 1px solid #1a1a1a;
+  background: var(--card-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 12px;
 }
@@ -329,7 +329,7 @@ onUnmounted(() => {
 .breaker-title {
   font-size: 13px;
   font-weight: 600;
-  color: #c8c8c8;
+  color: var(--text-color-1);
 }
 
 .breaker-body {
@@ -384,7 +384,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--color-target-modal);
 }
 
 .status-icon {
@@ -416,7 +416,7 @@ onUnmounted(() => {
 
 .counter-bar {
   height: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--color-target-modal);
   border-radius: 4px;
   overflow: hidden;
 }

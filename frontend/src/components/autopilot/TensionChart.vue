@@ -1,11 +1,10 @@
 <template>
-  <div class="tension-chart">
-    <div class="chart-header">
-      <span class="chart-title">📈 张力心电图</span>
+  <n-card title="📈 张力心电图" size="small" :bordered="true">
+    <template #header-extra>
       <n-tag v-if="hasLowTension" type="warning" size="small">
         ⚠️ 检测到低张力章节
       </n-tag>
-    </div>
+    </template>
 
     <div ref="chartRef" class="chart-container"></div>
 
@@ -13,7 +12,7 @@
     <n-alert v-if="hasLowTension" type="warning" :show-icon="false" style="margin-top: 8px; font-size: 12px">
       建议插入缓冲章或调整剧情节奏
     </n-alert>
-  </div>
+  </n-card>
 </template>
 
 <script setup lang="ts">
@@ -286,26 +285,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.tension-chart {
-  background: #0d0d0d;
-  border: 1px solid #1a1a1a;
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.chart-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.chart-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #c8c8c8;
-}
-
 .chart-container {
   width: 100%;
   height: 220px;

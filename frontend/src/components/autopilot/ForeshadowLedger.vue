@@ -308,8 +308,8 @@ onUnmounted(() => {
 
 <style scoped>
 .foreshadow-ledger {
-  background: #0d0d0d;
-  border: 1px solid #1a1a1a;
+  background: var(--card-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 12px;
 }
@@ -324,7 +324,7 @@ onUnmounted(() => {
 .ledger-title {
   font-size: 13px;
   font-weight: 600;
-  color: #c8c8c8;
+  color: var(--text-color-1);
 }
 
 .ledger-body {
@@ -340,8 +340,8 @@ onUnmounted(() => {
 }
 
 .stat-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--color-target-modal);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 8px;
   text-align: center;
@@ -349,14 +349,14 @@ onUnmounted(() => {
 
 .stat-label {
   font-size: 11px;
-  color: #888;
+  color: var(--text-color-3);
   margin-bottom: 4px;
 }
 
 .stat-value {
   font-size: 18px;
   font-weight: 600;
-  color: #c8c8c8;
+  color: var(--text-color-1);
   font-variant-numeric: tabular-nums;
 }
 
@@ -369,7 +369,7 @@ onUnmounted(() => {
 .list-header {
   font-size: 12px;
   font-weight: 600;
-  color: #888;
+  color: var(--text-color-2);
   margin-bottom: 4px;
 }
 
@@ -377,15 +377,15 @@ onUnmounted(() => {
   display: flex;
   gap: 10px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--color-target-modal);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   transition: all 0.2s;
 }
 
 .foreshadow-item:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--hover-color);
+  border-color: var(--border-color);
 }
 
 .foreshadow-item.collected {
@@ -400,7 +400,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--color-target-modal);
   border-radius: 50%;
 }
 
@@ -414,7 +414,7 @@ onUnmounted(() => {
 .item-text {
   font-size: 13px;
   line-height: 1.5;
-  color: #c8c8c8;
+  color: var(--text-color-1);
 }
 
 .item-meta {
@@ -444,15 +444,15 @@ onUnmounted(() => {
 
 .foreshadow-full-item {
   padding: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--color-target-modal);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   transition: all 0.2s;
 }
 
 .foreshadow-full-item:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--hover-color);
+  border-color: var(--border-color);
 }
 
 .foreshadow-full-item.collected {
@@ -469,7 +469,7 @@ onUnmounted(() => {
 .full-item-text {
   font-size: 14px;
   line-height: 1.6;
-  color: #c8c8c8;
+  color: var(--text-color-1);
   margin-bottom: 8px;
 }
 

@@ -54,21 +54,16 @@
     <RealtimeLogStream v-if="isRunning" :novel-id="novelId" />
 
     <!-- 操作按钮 -->
-    <n-space justify="space-between" size="small">
-      <n-button size="small" quaternary @click="goToMonitor">
-        📊 监控大盘
+    <n-space justify="end" size="small">
+      <n-button v-if="needsReview" type="warning" size="small" :loading="toggling" @click="resume">
+        确认大纲，继续写作
       </n-button>
-      <n-space size="small">
-        <n-button v-if="needsReview" type="warning" size="small" :loading="toggling" @click="resume">
-          确认大纲，继续写作
-        </n-button>
-        <n-button v-if="!isRunning && !needsReview" type="primary" size="small" :loading="toggling" @click="openStartModal">
-          🚀 启动全托管
-        </n-button>
-        <n-button v-if="isRunning" type="error" ghost size="small" :loading="toggling" @click="stop">
-          ⏹ 停止
-        </n-button>
-      </n-space>
+      <n-button v-if="!isRunning && !needsReview" type="primary" size="small" :loading="toggling" @click="openStartModal">
+        🚀 启动全托管
+      </n-button>
+      <n-button v-if="isRunning" type="error" ghost size="small" :loading="toggling" @click="stop">
+        ⏹ 停止
+      </n-button>
     </n-space>
 
     <!-- 启动配置弹窗 -->
@@ -85,13 +80,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMessage } from 'naive-ui'
-import { useRouter } from 'vue-router'
 import RealtimeLogStream from './RealtimeLogStream.vue'
 
 const props = defineProps({ novelId: String })
 const emit = defineEmits(['status-change'])
 const message = useMessage()
-const router = useRouter()
 
 const status = ref(null)
 const toggling = ref(false)
@@ -181,10 +174,6 @@ function connectSSE() {
 }
 
 function openStartModal() { showStartModal.value = true }
-
-function goToMonitor() {
-  router.push(`/book/${props.novelId}/autopilot`)
-}
 
 async function start() {
   toggling.value = true
