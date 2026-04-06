@@ -62,6 +62,8 @@ class ChapterAftermathPipeline:
         voice_drift_service: Any = None,
         triple_repository: Any = None,
         foreshadowing_repository: Any = None,
+        storyline_repository: Any = None,
+        chapter_repository: Any = None,
     ) -> None:
         self._knowledge = knowledge_service
         self._indexing = chapter_indexing_service
@@ -69,6 +71,8 @@ class ChapterAftermathPipeline:
         self._voice = voice_drift_service
         self._triple_repository = triple_repository
         self._foreshadowing_repository = foreshadowing_repository
+        self._storyline_repository = storyline_repository
+        self._chapter_repository = chapter_repository
 
     async def run_after_chapter_saved(
         self,
@@ -78,7 +82,7 @@ class ChapterAftermathPipeline:
     ) -> Dict[str, Any]:
         """保存正文后执行完整管线。返回文风结果供托管/审计门控使用。
 
-        三元组与伏笔已在 narrative_sync 单次 LLM 中落库，不再单独入队后台抽取。
+        三元组与伏笔、故事线、张力、对话已在 narrative_sync 单次 LLM 中落库。
         """
         out: Dict[str, Any] = {
             "drift_alert": False,
@@ -90,7 +94,7 @@ class ChapterAftermathPipeline:
             logger.debug("aftermath 跳过：正文为空 novel=%s ch=%s", novel_id, chapter_number)
             return out
 
-        # 1) 叙事 + 向量（与 chapter_narrative_sync 一致）
+        # 1) 叙事 + 向量 + 故事线 + 张力 + 对话（与 chapter_narrative_sync 一致）
         try:
             from application.world.services.chapter_narrative_sync import (
                 sync_chapter_narrative_after_save,
@@ -105,6 +109,8 @@ class ChapterAftermathPipeline:
                 self._llm,
                 triple_repository=self._triple_repository,
                 foreshadowing_repo=self._foreshadowing_repository,
+                storyline_repository=self._storyline_repository,
+                chapter_repository=self._chapter_repository,
             )
             out["narrative_sync_ok"] = True
         except Exception as e:
