@@ -1,13 +1,19 @@
 """托管连写：自动规划大纲 + 按章流式生成 + 可选落库，上下文由 ContextBuilder 维护。"""
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import Any, AsyncIterator, Dict
+from typing import Any, AsyncIterator, Dict, Optional, TYPE_CHECKING
 
 from application.core.services.chapter_service import ChapterService
 from application.core.services.novel_service import NovelService
 from application.workflows.auto_novel_generation_workflow import AutoNovelGenerationWorkflow
 from domain.shared.exceptions import EntityNotFoundError
+from domain.novel.value_objects.chapter_id import ChapterId
+from domain.novel.value_objects.novel_id import NovelId
+
+if TYPE_CHECKING:
+    from application.engine.services.chapter_aftermath_pipeline import ChapterAftermathPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +26,39 @@ class HostedWriteService:
         workflow: AutoNovelGenerationWorkflow,
         chapter_service: ChapterService,
         novel_service: NovelService,
+        chapter_aftermath_pipeline: Optional["ChapterAftermathPipeline"] = None,
     ):
         self._workflow = workflow
         self._chapter = chapter_service
         self._novel = novel_service
+        self._aftermath = chapter_aftermath_pipeline
+
+    def _schedule_chapter_aftermath(self, novel_id: str, chapter_number: int, content: str) -> None:
+        """与 HTTP 保存同源：叙事/向量、文风、KG、后台抽取（不阻塞 SSE）。"""
+        if not self._aftermath or not content.strip():
+            return
+
+        async def _run() -> None:
+            try:
+                dto = self._chapter.get_chapter_by_novel_and_number(novel_id, chapter_number)
+                if not dto:
+                    return
+                await self._aftermath.run_after_chapter_saved(
+                    novel_id,
+                    chapter_number,
+                    content,
+                    novel_id_vo=NovelId(novel_id),
+                    chapter_id_vo=ChapterId(dto.id),
+                )
+            except Exception as e:
+                logger.warning(
+                    "托管章后管线失败 novel=%s ch=%s: %s", novel_id, chapter_number, e
+                )
+
+        try:
+            asyncio.create_task(_run())
+        except Exception as e:
+            logger.warning("托管章后管线未调度: %s", e)
 
     def _fallback_outline(self, novel_id: str, chapter_number: int) -> str:
         dto = self._chapter.get_chapter_by_novel_and_number(novel_id, chapter_number)
@@ -102,6 +137,7 @@ class HostedWriteService:
                             novel_id, n, content
                         )
                         logger.info(f"  ✓ 章节 {n} 更新成功")
+                        self._schedule_chapter_aftermath(novel_id, n, content)
                         yield {"type": "saved", "chapter": n, "ok": True}
                     except EntityNotFoundError as e:
                         # 章节不存在，创建新章节
@@ -117,6 +153,7 @@ class HostedWriteService:
                                 content=content
                             )
                             logger.info(f"  ✓ 章节 {n} 创建成功")
+                            self._schedule_chapter_aftermath(novel_id, n, content)
                             yield {"type": "saved", "chapter": n, "ok": True, "created": True}
                         except (ValueError, Exception) as create_ex:
                             logger.error(f"  × 创建章节 {n} 失败: {type(create_ex).__name__}: {create_ex}")
