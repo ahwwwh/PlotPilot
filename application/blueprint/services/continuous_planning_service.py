@@ -1310,17 +1310,194 @@ class ContinuousPlanningService:
         return acts[0] if acts else None
 
     async def _generate_next_act_info(self, novel_id: str, current_act: StoryNode, bible_context: Dict) -> Dict:
-        """生成下一幕信息"""
-        prompt = Prompt(
-            system="你是一个专业的小说结构规划助手。",
-            user=f"""生成第{current_act.number + 1}幕信息。输出JSON格式：{{"title": "幕标题", "description": "幕简介"}}"""
-        )
+        """生成下一幕信息（双轨融合版）
+        
+        轨道一：宏观摘要线
+        - 注入前一卷/前一部的高浓缩摘要
+        - 提供时空基石，防止时间线错乱
+        
+        轨道二：微观高亮线
+        - 强制注入待回收伏笔
+        - 注入角色当前状态锚点
+        """
+        # 收集双轨上下文
+        dual_track_context = await self._collect_dual_track_context(novel_id, current_act, bible_context)
+        
+        # 构建增强型 Prompt
+        prompt = self._build_next_act_prompt_with_dual_track(current_act, dual_track_context)
+        
         try:
             response = await self.llm_service.generate(prompt, GenerationConfig(max_tokens=4096, temperature=0.7))
-            return self._parse_llm_response(response)
-        except:
+            result = self._parse_llm_response(response)
+            
+            # 确保返回必要的字段
+            if not isinstance(result, dict):
+                result = {}
+            result.setdefault("title", f"第{current_act.number + 1}幕")
+            result.setdefault("description", "继续推进剧情")
+            result.setdefault("suggested_chapter_count", 5)
+            
+            return result
+        except Exception as e:
+            logger.warning(f"生成下一幕信息失败: {e}")
             return {
                 "title": f"第{current_act.number + 1}幕",
                 "description": "描述",
                 "suggested_chapter_count": 5
             }
+    
+    async def _collect_dual_track_context(
+        self,
+        novel_id: str,
+        current_act: StoryNode,
+        bible_context: Dict,
+    ) -> Dict[str, str]:
+        """收集双轨上下文
+        
+        Returns:
+            {
+                "volume_summary": "前一卷的摘要",
+                "current_volume_summary": "当前卷的摘要",
+                "pending_foreshadowings": "待回收伏笔列表",
+                "character_states": "角色状态锚点",
+            }
+        """
+        context = {
+            "volume_summary": "",
+            "current_volume_summary": "",
+            "pending_foreshadowings": "",
+            "character_states": "",
+        }
+        
+        try:
+            # 获取所有节点
+            all_nodes = await self.story_node_repo.get_by_novel(novel_id)
+            
+            # 找到当前幕所属的卷
+            current_volume = None
+            if current_act.parent_id:
+                current_volume = next(
+                    (n for n in all_nodes if n.id == current_act.parent_id),
+                    None
+                )
+            
+            # 轨道一：获取卷摘要
+            if current_volume:
+                vol_summary = current_volume.metadata.get("summary", "") if current_volume.metadata else ""
+                if vol_summary:
+                    context["current_volume_summary"] = f"【当前卷进度】{current_volume.title}\n{vol_summary}"
+            
+            # 获取前一卷的摘要
+            volume_nodes = sorted(
+                [n for n in all_nodes if n.node_type.value == "volume"],
+                key=lambda x: x.number
+            )
+            if current_volume:
+                prev_volumes = [v for v in volume_nodes if v.number < (current_volume.number or 0)]
+                if prev_volumes:
+                    prev_vol = prev_volumes[-1]
+                    prev_summary = prev_vol.metadata.get("summary", "") if prev_vol.metadata else ""
+                    if prev_summary:
+                        context["volume_summary"] = f"【前一卷回顾】{prev_vol.title}\n{prev_summary}"
+            
+            # 轨道二：获取待回收伏笔
+            if hasattr(self, 'chapter_repository') and self.chapter_repository:
+                try:
+                    from domain.novel.repositories.foreshadowing_repository import ForeshadowingRepository
+                    from domain.novel.value_objects.novel_id import NovelId
+                    
+                    # 尝试获取伏笔仓库（通过依赖注入或直接创建）
+                    if hasattr(self.story_node_repo, 'db_path'):
+                        from infrastructure.persistence.database.foreshadowing_repository import ForeshadowingRepositoryImpl
+                        foreshadowing_repo = ForeshadowingRepositoryImpl(self.story_node_repo.db_path)
+                        registry = foreshadowing_repo.get_by_novel_id(NovelId(novel_id))
+                        
+                        if registry:
+                            pending = registry.get_unresolved()
+                            if pending:
+                                lines = ["【待回收伏笔】"]
+                                for f in pending[:5]:
+                                    lines.append(f"- 第{f.planted_in_chapter}章: {f.description}")
+                                context["pending_foreshadowings"] = "\n".join(lines)
+                except Exception as e:
+                    logger.debug(f"获取伏笔信息时出错: {e}")
+            
+            # 轨道二：获取角色状态
+            if bible_context and bible_context.get("characters"):
+                char_lines = ["【角色当前状态】"]
+                for char in bible_context["characters"][:3]:
+                    name = char.get("name", "")
+                    desc = char.get("description", "")
+                    mental = char.get("mental_state", "")
+                    tic = char.get("verbal_tic", "")
+                    
+                    char_info = f"- {name}: {desc[:50]}"
+                    if mental:
+                        char_info += f" [心理: {mental}]"
+                    if tic:
+                        char_info += f" 口头禅: {tic}"
+                    char_lines.append(char_info)
+                
+                context["character_states"] = "\n".join(char_lines)
+        
+        except Exception as e:
+            logger.warning(f"收集双轨上下文失败: {e}")
+        
+        return context
+    
+    def _build_next_act_prompt_with_dual_track(
+        self,
+        current_act: StoryNode,
+        dual_track_context: Dict[str, str],
+    ) -> Prompt:
+        """构建双轨融合的下一幕生成 Prompt"""
+        
+        system = """你是一位资深的小说结构设计师，擅长在长篇叙事中推进剧情。
+你的任务是为下一幕设计详细的内容规划，确保：
+1. 与前文保持连贯，不出现时间线或人物状态矛盾
+2. 有意识地回收或推进已有伏笔
+3. 设置新的冲突和悬念
+
+请直接输出 JSON 格式，不要添加解释性文字。"""
+        
+        # 组装双轨上下文
+        context_parts = []
+        
+        if dual_track_context.get("volume_summary"):
+            context_parts.append(dual_track_context["volume_summary"])
+        
+        if dual_track_context.get("current_volume_summary"):
+            context_parts.append(dual_track_context["current_volume_summary"])
+        
+        if dual_track_context.get("pending_foreshadowings"):
+            context_parts.append(dual_track_context["pending_foreshadowings"])
+        
+        if dual_track_context.get("character_states"):
+            context_parts.append(dual_track_context["character_states"])
+        
+        context_block = "\n\n".join(context_parts) if context_parts else "暂无前文上下文"
+        
+        user = f"""【双轨上下文】
+{context_block}
+
+【当前幕信息】
+幕标题：{current_act.title}
+幕描述：{current_act.description or '无'}
+幕号：第 {current_act.number} 幕
+
+【任务】
+请生成第 {current_act.number + 1} 幕的详细规划。
+
+【输出要求】
+请输出 JSON 格式：
+{{
+  "title": "幕标题（动词+名词，暗示冲突）",
+  "description": "幕简介（100-200字，包含核心事件、冲突、转折）",
+  "suggested_chapter_count": 预估章数（整数）,
+  "key_events": ["事件1", "事件2"],
+  "narrative_arc": "叙事弧线（如：紧张→爆发→暂缓）",
+  "foreshadow_to_resolve": ["需要回收的伏笔"],
+  "foreshadow_to_plant": ["需要埋下的新伏笔"]
+}}"""
+        
+        return Prompt(system=system, user=user)
