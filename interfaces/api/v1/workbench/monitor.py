@@ -47,7 +47,7 @@ async def get_tension_curve(novel_id: str):
     """
     获取章节张力曲线数据
 
-    返回每章的张力值（0-100），用于绘制张力曲线图
+    返回每章的张力值（0-10），用于绘制张力曲线图
     """
     try:
         chapter_repo = get_chapter_repository()
@@ -55,11 +55,12 @@ async def get_tension_curve(novel_id: str):
 
         points = []
         for ch in chapters:
-            # 从章节元数据中获取张力值
-            tension = getattr(ch, 'tension_score', None) or 50.0
+            # 从章节元数据中获取张力值（0-100），转换为 0-10 范围
+            raw_tension = getattr(ch, 'tension_score', None) or 50.0
+            tension = float(raw_tension) / 10.0  # 转换为 0-10 范围
             points.append(TensionPoint(
                 chapter=ch.number,
-                tension=float(tension),
+                tension=tension,
                 title=ch.title or f"第{ch.number}章"
             ))
 

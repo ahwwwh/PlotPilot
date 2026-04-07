@@ -725,6 +725,9 @@ class AutopilotDaemon:
         # 2. 张力打分（轻量 LLM 调用，~200 token）
         tension = await self._score_tension(content)
         novel.last_chapter_tension = tension
+        # 保存张力值到章节（用于张力曲线图）
+        chapter.update_tension_score(tension * 10)  # 转换为 0-100 范围
+        self.chapter_repository.save(chapter)
         logger.info(f"[{novel.novel_id}] 章节 {chapter_num} 张力值：{tension}/10")
 
         # 章末审阅快照（写入 novels，供 /autopilot/status 与前台「章节状态 / 章节元素」）
