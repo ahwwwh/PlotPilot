@@ -80,13 +80,51 @@ class StartRequest(BaseModel):
     max_auto_chapters: Optional[int] = 9999  # 保护上限，默认几乎无限制，由 target_chapters 控制实际完成点
 
 
+def _count_completed_chapters(chapters) -> int:
+    def _status(ch):
+        return ch.status.value if hasattr(ch.status, "value") else ch.status
+
+    return len([c for c in chapters if _status(c) == "completed"])
+
+
+def _recover_stage_from_completed(novel, chapter_repo) -> Optional[NovelStage]:
+    """从异常的 COMPLETED 阶段恢复可继续运行的状态。
+
+    返回：
+    - None：说明小说确实已经完成，不应再次启动
+    - NovelStage：应该恢复到的下一阶段
+    """
+    chapters = chapter_repo.list_by_novel(NovelId(novel.novel_id.value))
+    completed_count = _count_completed_chapters(chapters)
+    target = max(int(novel.target_chapters or 0), 1)
+
+    if completed_count >= target:
+        return None
+
+    if _has_chapter_nodes_under_current_act(novel.novel_id.value, getattr(novel, "current_act", 0) or 0):
+        return NovelStage.WRITING
+    return NovelStage.ACT_PLANNING
+
+
 @router.post("/{novel_id}/start")
 async def start_autopilot(novel_id: str, body: StartRequest = StartRequest()):
     """启动自动驾驶"""
     repo = get_novel_repository()
+    chapter_repo = get_chapter_repository()
     novel = repo.get_by_id(NovelId(novel_id))
     if not novel:
         raise HTTPException(404, "小说不存在")
+
+    if novel.current_stage == NovelStage.COMPLETED:
+        recovered_stage = _recover_stage_from_completed(novel, chapter_repo)
+        if recovered_stage is None:
+            raise HTTPException(400, "当前小说已完成，无可继续生成内容")
+        logger.warning(
+            "autopilot start: novel_id=%s detected stale completed stage, recovering to %s",
+            novel_id,
+            recovered_stage.value,
+        )
+        novel.current_stage = recovered_stage
 
     novel.autopilot_status = AutopilotStatus.RUNNING
     novel.max_auto_chapters = body.max_auto_chapters

@@ -58,8 +58,21 @@ class AnthropicProvider(BaseProvider):
         }
         if base:
             official_client_kw["base_url"] = base
+        official_client_kw["http_client"] = httpx.Client(
+            timeout=settings.timeout_seconds,
+            trust_env=False,
+        )
+        async_http_client = httpx.AsyncClient(
+            timeout=settings.timeout_seconds,
+            trust_env=False,
+        )
         self.client = Anthropic(**official_client_kw)
-        self.async_client = AsyncAnthropic(**official_client_kw)
+        self.async_client = AsyncAnthropic(
+            **{
+                **official_client_kw,
+                "http_client": async_http_client,
+            }
+        )
 
         # 兼容旧字段：若其他模块引用，保留归一化后的值
         self.proxy_base_url = base
@@ -158,7 +171,10 @@ class AnthropicProvider(BaseProvider):
         logger.debug(f"[Stream] Calling {url}")
 
         try:
-            async with httpx.AsyncClient(timeout=self.settings.timeout_seconds) as client:
+            async with httpx.AsyncClient(
+                timeout=self.settings.timeout_seconds,
+                trust_env=False,
+            ) as client:
                 async with client.stream(
                     "POST",
                     url,

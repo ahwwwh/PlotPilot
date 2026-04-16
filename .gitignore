@@ -69,14 +69,19 @@ Desktop.ini
 # Local vector DB / dev dumps (if checked in by mistake)
 qdrant_storage/
 .models/
+frontend/node_modules/
 
 # Evaluation results
 scripts/evaluation/results/
 
-# Data directory (keep structure, ignore content)
+# Local runtime environment artifacts
+# 这些是本机启动、索引、日志、模型下载产生的内容，不应入库
 data/chromadb/
+data/qdrant_storage/
 data/logs/
 data/llm_configs.json
+logs/
+data/qdrant/
 
 
 PlotPilot-master

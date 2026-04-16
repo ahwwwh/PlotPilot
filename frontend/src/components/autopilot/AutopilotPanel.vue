@@ -100,11 +100,11 @@
     <n-modal v-model:show="showStartModal" title="启动全托管" preset="dialog" positive-text="启动" @positive-click="start">
       <n-space vertical :size="12" style="width: 100%">
         <n-alert type="success" :show-icon="true" style="font-size: 12px">
-          <strong>自动托管</strong>：守护进程已在后端自动启动，配置好参数后点击"启动"即可开始自动写作。
+          <strong>自动托管</strong>：守护进程已在后端自动启动，配置好<strong>预计总章数</strong>和<strong>当次计划参数</strong>后点击"启动"即可开始自动写作。
         </n-alert>
         <n-form>
           <!-- 目标章数（可编辑） -->
-          <n-form-item label="目标章数">
+          <n-form-item label="预计总章数">
             <n-input-number 
               v-model:value="startConfig.target_chapters"
               :min="1"
@@ -115,7 +115,7 @@
             />
           </n-form-item>
           <!-- 保护上限 -->
-          <n-form-item label="保护上限（章节数，防止意外消耗）">
+          <n-form-item label="当次计划上限（本次最多先写到第几章）">
             <n-input-number 
               v-model:value="startConfig.max_auto_chapters" 
               :min="startConfig.target_chapters"
@@ -146,7 +146,7 @@
               <strong>全自动模式已开启</strong>：系统将跳过所有审阅环节，自动运行直到写完。
             </template>
             <template v-else>
-              达到 <strong>{{ startConfig.target_chapters }} 章</strong> 目标时自动完成全书；保护上限已自动设置为 <strong>目标 + 20</strong>。
+              <strong>预计总章数</strong>是这本书的大致总目标；<strong>当次计划参数</strong>控制这一次最多先写到第几章。当前当次计划上限已自动设置为 <strong>预计总章数 + 20</strong>。
             </template>
           </n-alert>
         </n-form>

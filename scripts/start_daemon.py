@@ -15,10 +15,18 @@ import sys
 import logging
 import time
 from pathlib import Path
-from dotenv import load_dotenv
 
-load_dotenv()
-sys.path.insert(0, str(Path(__file__).parent.parent))
+_AITEXT_ROOT = Path(__file__).resolve().parent.parent
+if str(_AITEXT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_AITEXT_ROOT))
+
+try:
+    from load_env import load_env
+
+    load_env()
+except Exception:
+    # 非标准启动方式或缺少 .env 时忽略
+    pass
 
 from application.paths import AITEXT_ROOT, get_db_path, DATA_DIR
 from infrastructure.persistence.database.connection import get_database

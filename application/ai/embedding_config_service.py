@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -35,6 +36,12 @@ class EmbeddingConfigModel(BaseModel):
             "use_gpu": self.use_gpu,
             "model_path": self.model_path,
         }
+
+    def to_api_dict(self) -> Dict[str, Any]:
+        payload = self.to_dict()
+        payload["created_at"] = self.created_at
+        payload["updated_at"] = self.updated_at
+        return payload
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "EmbeddingConfigModel":
@@ -77,15 +84,37 @@ class EmbeddingConfigService:
         """获取数据库连接（延迟导入避免循环依赖）。"""
         if self._db is not None:
             return self._db
-        from infrastructure.persistence.database.connection import DatabaseConnection
-        from load_env import PROJECT_ROOT
-        db_path = str(PROJECT_ROOT / "data" / "aitext.db")
         try:
             from interfaces.api.dependencies import get_db as _get_global_db
             return _get_global_db()
         except Exception:
             pass
+        from infrastructure.persistence.database.connection import DatabaseConnection
+        from application.paths import DATA_DIR
+        db_path = str(DATA_DIR / "aitext.db")
         return DatabaseConnection(db_path)
+
+    def _default_values(self) -> Dict[str, Any]:
+        """优先从环境变量读取默认值，避免首次初始化覆盖本地开发配置。"""
+        return {
+            "id": "default",
+            "mode": (os.getenv("EMBEDDING_SERVICE", self._DEFAULTS["mode"]) or self._DEFAULTS["mode"]).lower(),
+            "api_key": os.getenv("EMBEDDING_API_KEY", self._DEFAULTS["api_key"]),
+            "base_url": os.getenv("EMBEDDING_BASE_URL", self._DEFAULTS["base_url"]),
+            "model": os.getenv("EMBEDDING_MODEL", self._DEFAULTS["model"]),
+            "use_gpu": 1 if os.getenv("EMBEDDING_USE_GPU", "true").lower() == "true" else 0,
+            "model_path": os.getenv("EMBEDDING_MODEL_PATH", self._DEFAULTS["model_path"]),
+        }
+
+    def _commit_db(self, db) -> None:
+        """兼容 DatabaseConnection 与 sqlite3.Connection 的提交方式。"""
+        if hasattr(db, "commit"):
+            db.commit()
+            return
+        if hasattr(db, "get_connection"):
+            db.get_connection().commit()
+            return
+        raise AttributeError("Database object does not support commit")
 
     def _ensure_row(self) -> None:
         """确保存在默认配置行（幂等）。"""
@@ -97,15 +126,23 @@ class EmbeddingConfigService:
         if row:
             return
         now = datetime.now().isoformat()
+        defaults = self._default_values()
         db.execute("""
             INSERT OR IGNORE INTO embedding_config
             (id, mode, api_key, base_url, model, use_gpu, model_path, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            "default", "local", "", "", "text-embedding-3-small",
-            1, "BAAI/bge-small-zh-v1.5", now, now,
+            defaults["id"],
+            defaults["mode"],
+            defaults["api_key"],
+            defaults["base_url"],
+            defaults["model"],
+            defaults["use_gpu"],
+            defaults["model_path"],
+            now,
+            now,
         ))
-        db.commit()
+        self._commit_db(db)
         logger.info("EmbeddingConfigService: 已初始化默认嵌入配置")
 
     def get_config(self) -> EmbeddingConfigModel:
@@ -155,7 +192,7 @@ class EmbeddingConfigService:
 
         sql = f"UPDATE embedding_config SET {', '.join(set_clauses)} WHERE id = ?"
         db.execute(sql, params)
-        db.commit()
+        self._commit_db(db)
 
         logger.info("EmbeddingConfigService: 配置已更新，字段: %s", list(kwargs.keys()))
         return self.get_config()
@@ -163,10 +200,7 @@ class EmbeddingConfigService:
     def to_api_dict(self) -> Dict[str, Any]:
         """返回 API 友好的字典格式。"""
         cfg = self.get_config()
-        result = cfg.to_dict()
-        result["created_at"] = cfg.created_at
-        result["updated_at"] = cfg.updated_at
-        return result
+        return cfg.to_api_dict()
 
 
 # ── 单例 ──────────────────────────────────────────────
