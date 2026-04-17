@@ -103,7 +103,7 @@
           <strong>自动托管</strong>：守护进程已在后端自动启动，配置好参数后点击"启动"即可开始自动写作。
         </n-alert>
         <n-alert type="info" :show-icon="false" style="font-size: 12px">
-          目标章节数统一在右侧「小说设置」里维护。这里仅配置本次托管启动参数，避免与项目配置重复维护。
+          目标章节数沿用项目当前配置。这里仅配置本次托管启动参数，避免重复维护同一套目标。
         </n-alert>
         <n-form>
           <n-form-item label="目标章数">
