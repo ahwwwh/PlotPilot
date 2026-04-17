@@ -25,6 +25,7 @@ from infrastructure.persistence.database.sqlite_storyline_repository import Sqli
 from infrastructure.persistence.database.sqlite_plot_arc_repository import SqlitePlotArcRepository
 from infrastructure.persistence.database.sqlite_voice_vault_repository import SqliteVoiceVaultRepository
 from infrastructure.persistence.database.sqlite_voice_fingerprint_repository import SQLiteVoiceFingerprintRepository
+from infrastructure.persistence.database.sqlite_chapter_generation_metrics_repository import SqliteChapterGenerationMetricsRepository
 from infrastructure.persistence.database.story_node_repository import StoryNodeRepository
 from infrastructure.persistence.database.sqlite_cast_repository import SqliteCastRepository
 from infrastructure.persistence.database.sqlite_foreshadowing_repository import SqliteForeshadowingRepository
@@ -265,7 +266,8 @@ def get_novel_service() -> NovelService:
     return NovelService(
         get_novel_repository(),
         get_chapter_repository(),
-        get_story_node_repository()
+        get_story_node_repository(),
+        SqliteChapterGenerationMetricsRepository(get_database()),
     )
 
 
@@ -281,7 +283,8 @@ def get_chapter_service() -> ChapterService:
     return ChapterService(
         get_chapter_repository(), 
         get_novel_repository(),
-        review_repo
+        review_repo,
+        SqliteChapterGenerationMetricsRepository(get_database()),
     )
 
 

@@ -102,23 +102,18 @@
         <n-alert type="success" :show-icon="true" style="font-size: 12px">
           <strong>自动托管</strong>：守护进程已在后端自动启动，配置好<strong>预计总章数</strong>和<strong>当次计划参数</strong>后点击"启动"即可开始自动写作。
         </n-alert>
+        <n-alert type="info" :show-icon="false" style="font-size: 12px">
+          目标章节数沿用项目当前配置。这里仅配置本次托管启动参数，避免重复维护同一套目标。
+        </n-alert>
         <n-form>
-          <!-- 目标章数（可编辑） -->
-          <n-form-item label="预计总章数">
-            <n-input-number 
-              v-model:value="startConfig.target_chapters"
-              :min="1"
-              :max="9999"
-              :step="10"
-              style="width: 100%"
-              @update:value="updateProtectionLimit"
-            />
+          <n-form-item label="目标章数">
+            <n-input :value="targetChapterSummary" readonly />
           </n-form-item>
           <!-- 保护上限 -->
           <n-form-item label="当次计划上限（本次最多先写到第几章）">
             <n-input-number 
               v-model:value="startConfig.max_auto_chapters" 
-              :min="startConfig.target_chapters"
+              :min="targetChapters"
               :max="9999"
               :step="10"
               style="width: 100%"
@@ -253,7 +248,7 @@
               <strong>全自动模式已开启</strong>：系统将跳过所有审阅环节，自动运行直到写完。
             </template>
             <template v-else>
-              <strong>预计总章数</strong>是这本书的大致总目标；<strong>当次计划参数</strong>控制这一次最多先写到第几章。当前当次计划上限已自动设置为 <strong>预计总章数 + 20</strong>。
+              达到 <strong>{{ targetChapters }} 章</strong> 目标时自动完成全书；保护上限建议至少为 <strong>目标 + 20</strong>。
             </template>
             <template v-if="startConfig.theme_agent_enabled && currentGenre">
               <br/>🎯 <strong>专项题材增强已开启</strong>：将使用「{{ currentGenreLabel }}」题材的专项写作能力（人设、节拍、规则）。
@@ -283,7 +278,6 @@ const status = ref(null)
 const toggling = ref(false)
 const showStartModal = ref(false)
 const startConfig = ref({
-  target_chapters: 100,
   max_auto_chapters: 120,
   auto_approve_mode: false,
   theme_agent_enabled: false,
@@ -308,6 +302,7 @@ const skillForm = ref({
 
 // 目标章数（从 status 获取）
 const targetChapters = computed(() => status.value?.target_chapters || 100)
+const targetChapterSummary = computed(() => `当前项目目标 ${targetChapters.value} 章`)
 
 // 题材信息（用于专项题材 Agent 开关的描述文案）
 const genreMap = {
@@ -318,7 +313,6 @@ const genreMap = {
 const currentGenre = computed(() => status.value?.genre || '')
 const currentGenreLabel = computed(() => genreMap[currentGenre.value] || currentGenre.value || '')
 
-// 加载可用增强技能
 async function fetchAvailableSkills() {
   if (!props.novelId || !currentGenre.value) {
     availableSkills.value = []
@@ -328,7 +322,6 @@ async function fetchAvailableSkills() {
   try {
     const data = await novelApi.getAvailableThemeSkills(props.novelId)
     availableSkills.value = data.available_skills || []
-    // 如果当前没有选中任何技能，默认全选
     if (startConfig.value.enabled_theme_skills.length === 0 && availableSkills.value.length > 0) {
       startConfig.value.enabled_theme_skills = availableSkills.value.map(s => s.key)
     }
@@ -339,82 +332,13 @@ async function fetchAvailableSkills() {
   }
 }
 
-// 当题材 Agent 开关变化时，自动加载可用技能
 watch(
   () => startConfig.value.theme_agent_enabled,
   (enabled) => {
-    if (enabled && currentGenre.value) {
-      fetchAvailableSkills()
-    } else {
-      availableSkills.value = []
-    }
+    if (enabled && currentGenre.value) fetchAvailableSkills()
+    else availableSkills.value = []
   }
 )
-
-// ─── 自定义技能管理 ───
-
-function openCreateSkill() {
-  editingSkillId.value = null
-  skillForm.value = {
-    skill_name: '',
-    skill_description: '',
-    context_prompt: '',
-    beat_prompt: '',
-    beat_triggers: '',
-    audit_checks: [],
-  }
-  showSkillEditor.value = true
-}
-
-function openEditSkill(skill) {
-  editingSkillId.value = skill.id
-  skillForm.value = {
-    skill_name: skill.name,
-    skill_description: skill.description || '',
-    context_prompt: skill.context_prompt || '',
-    beat_prompt: skill.beat_prompt || '',
-    beat_triggers: skill.beat_triggers || '',
-    audit_checks: [...(skill.audit_checks || [])],
-  }
-  showSkillEditor.value = true
-}
-
-async function saveCustomSkill() {
-  if (!skillForm.value.skill_name.trim()) {
-    message.warning('请填写技能名称')
-    return false
-  }
-  try {
-    if (editingSkillId.value) {
-      // 更新
-      await novelApi.updateCustomSkill(props.novelId, editingSkillId.value, skillForm.value)
-      message.success('技能已更新')
-    } else {
-      // 创建
-      const created = await novelApi.createCustomSkill(props.novelId, skillForm.value)
-      // 自动启用新创建的技能
-      startConfig.value.enabled_theme_skills.push(created.key)
-      message.success('技能已创建')
-    }
-    // 刷新技能列表
-    await fetchAvailableSkills()
-  } catch (e) {
-    message.error('操作失败')
-    return false
-  }
-}
-
-async function deleteCustomSkill(skill) {
-  try {
-    await novelApi.deleteCustomSkill(props.novelId, skill.id)
-    // 从已选中列表移除
-    startConfig.value.enabled_theme_skills = startConfig.value.enabled_theme_skills.filter(k => k !== skill.key)
-    message.success('技能已删除')
-    await fetchAvailableSkills()
-  } catch (e) {
-    message.error('删除失败')
-  }
-}
 /** HTTP/1.1 下同域长连接约 6 路；避免与日志 /stream 双开占满导致其它 API 挂起 */
 let statusPollTimer = null
 /** novel_id 在库中不存在(404)时不再轮询，避免旧标签页/错 slug 刷屏访问日志 */
@@ -542,7 +466,6 @@ function openStartModal() {
   const themeEnabled = status.value?.theme_agent_enabled ?? false
   const enabledSkills = status.value?.enabled_theme_skills || []
   startConfig.value = {
-    target_chapters: target,
     max_auto_chapters: target + 20,
     auto_approve_mode: autoApprove,
     theme_agent_enabled: themeEnabled,
@@ -555,39 +478,18 @@ function openStartModal() {
   }
 }
 
-function updateProtectionLimit() {
-  // 当目标章数改变时，自动调整保护上限
-  const target = startConfig.value.target_chapters
-  if (startConfig.value.max_auto_chapters < target + 20) {
-    startConfig.value.max_auto_chapters = target + 20
-  }
-}
-
 async function start() {
   toggling.value = true
   try {
-    // 先更新小说的目标章节数和全自动模式（如果需要修改）
-    const currentTarget = status.value?.target_chapters
-    const newTarget = startConfig.value.target_chapters
     const currentAutoApprove = status.value?.auto_approve_mode ?? false
     const newAutoApprove = startConfig.value.auto_approve_mode
 
-    if (currentTarget !== newTarget || currentAutoApprove !== newAutoApprove) {
+    if (currentAutoApprove !== newAutoApprove) {
       try {
-        await novelApi.updateNovel(props.novelId, { target_chapters: newTarget })
+        await novelApi.updateAutoApproveMode(props.novelId, newAutoApprove)
       } catch {
-        message.error('更新目标章节数失败')
+        message.error('更新全自动模式失败')
         return
-      }
-
-      // 更新全自动模式
-      if (currentAutoApprove !== newAutoApprove) {
-        try {
-          await novelApi.updateAutoApproveMode(props.novelId, newAutoApprove)
-        } catch {
-          message.error('更新全自动模式失败')
-          return
-        }
       }
     }
 
