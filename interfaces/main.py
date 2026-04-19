@@ -323,11 +323,13 @@ def _run_daemon_in_process(
                 
                 if active_novels:
                     import asyncio
-                    for novel in active_novels:
-                        if stop_event.is_set():
-                            break
-                        # 使用独立事件循环处理每个小说
-                        asyncio.run(daemon._process_novel(novel))
+                    # 多本并发：复用 daemon.start() 同款的 gather 路径，
+                    # 避免串行轮流导致单本速度被其它本拖累。
+                    # _process_novels_concurrently 内部用 return_exceptions=True
+                    # 做异常隔离，单本失败不影响其它本。
+                    asyncio.run(
+                        daemon._process_novels_concurrently(active_novels)
+                    )
                 
                 # 轮询间隔（使用 wait 而非 sleep，以便快速响应停止信号）
                 stop_event.wait(timeout=daemon.poll_interval)
