@@ -43,7 +43,8 @@ class SqliteChapterRepository(ChapterRepository):
         chapter_id = chapter.id.value if hasattr(chapter.id, 'value') else chapter.id
         novel_id = chapter.novel_id.value if hasattr(chapter.novel_id, 'value') else chapter.novel_id
         status = chapter.status.value if hasattr(chapter.status, 'value') else chapter.status
-        self.db.execute(sql, (
+        # 多本并发：daemon 与 API 共享同一 SQLite，写章节路径必须可重试避免 locked
+        self.db.execute_write(sql, (
             chapter_id,
             novel_id,
             chapter.number,

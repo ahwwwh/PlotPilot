@@ -94,7 +94,9 @@ class SqliteNovelRepository(NovelRepository):
         lai_json = json.dumps(lai) if lai else None
         twpc = getattr(novel, "target_words_per_chapter", 2500)
 
-        self.db.execute(sql, (
+        # 关键路径写：daemon 子进程并发写章节时，API 端 start/stop autopilot
+        # 必须能等到锁释放，否则前端报"启动失败"。
+        self.db.execute_write(sql, (
             novel_id,
             novel.title,
             slug,

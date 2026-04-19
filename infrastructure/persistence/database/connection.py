@@ -3,11 +3,17 @@ import logging
 import sqlite3
 import sys
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# 写操作应用层重试预算（秒）。
+# 与 PRAGMA busy_timeout=30000 叠加：daemon 子进程长时间持锁时，给 API 端写操作
+# 一个总等待预算（默认 60s），超过仍未拿到写锁才向上抛错。
+_WRITE_RETRY_BUDGET_SECONDS: float = 60.0
 
 
 def _database_asset_dir() -> Path:
@@ -372,6 +378,27 @@ class DatabaseConnection:
         """
         conn = self.get_connection()
         return conn.execute(sql, params)
+
+    def execute_write(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+        """带重试的写操作。daemon 子进程长期占用 SQLite 写锁时，API 端的
+        UPDATE/INSERT 会撞 `database is locked`；这里在 busy_timeout 之外再
+        加一层应用层退避，把瞬时 locked 吞掉。"""
+        conn = self.get_connection()
+        deadline = time.monotonic() + _WRITE_RETRY_BUDGET_SECONDS
+        backoff = 0.05
+        last_err: Optional[sqlite3.OperationalError] = None
+        while True:
+            try:
+                return conn.execute(sql, params)
+            except sqlite3.OperationalError as e:
+                msg = str(e).lower()
+                if "locked" not in msg and "busy" not in msg:
+                    raise
+                last_err = e
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(backoff)
+                backoff = min(backoff * 1.6, 0.5)
 
     def execute_many(self, sql: str, params_list: list) -> None:
         """批量执行 SQL 语句
