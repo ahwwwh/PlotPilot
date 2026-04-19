@@ -291,6 +291,10 @@ def _run_daemon_in_process(
         log_file: 日志文件路径
         stream_queue: StreamingBus 的队列对象（从主进程传入）
     """
+    # 子进程禁止加载本地 bge，避免主进程+子进程两份模型叠加 OOM
+    # API 模式 embedding 仍可用（此 flag 仅阻断 local sentence-transformers 路径）
+    os.environ["DAEMON_DISABLE_LOCAL_EMBED"] = "1"
+
     # 重新配置日志（子进程需要独立配置）
     from interfaces.api.middleware.logging_config import setup_logging
     setup_logging(level=log_level, log_file=log_file)

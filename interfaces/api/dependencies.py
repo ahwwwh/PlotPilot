@@ -413,6 +413,7 @@ def get_consistency_checker() -> ConsistencyChecker:
     return ConsistencyChecker()
 
 
+@lru_cache(maxsize=1)
 def get_embedding_service():
     """获取 Embedding 服务（优先从数据库读取配置，环境变量作为 fallback）。
 
@@ -424,6 +425,9 @@ def get_embedding_service():
     如果 VECTOR_STORE_ENABLED=false，返回 None。
     """
     if os.getenv("VECTOR_STORE_ENABLED", "true").lower() != "true":
+        return None
+    # daemon 子进程禁止加载本地 bge（两份模型叠加必 OOM）；API 模式不受影响
+    if os.getenv("DAEMON_DISABLE_LOCAL_EMBED", "").lower() in ("1", "true"):
         return None
 
     # 尝试从数据库读取配置

@@ -57,6 +57,14 @@ class VectorRetrievalFacade:
         limit: int,
     ) -> List[dict]:
         """内部异步搜索实现"""
+        # 先检查集合是否存在，避免对空/未索引集合运行昂贵的 embed 推断
+        try:
+            existing = await self.vector_store.list_collections()
+            if collection not in existing:
+                return []
+        except Exception:
+            return []
+
         # 生成查询向量
         query_vector = await self.embedding_service.embed(query_text)
 
