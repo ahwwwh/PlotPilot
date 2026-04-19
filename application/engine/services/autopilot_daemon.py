@@ -120,11 +120,10 @@ class AutopilotDaemon:
                     logger.info(f"🔄 Loop #{loop_count}: 发现 {len(active_novels)} 本活跃小说")
 
                 if active_novels:
-                    for novel in active_novels:
-                        novel_start = time.time()
-                        asyncio.run(self._process_novel(novel))
-                        novel_elapsed = time.time() - novel_start
-                        logger.debug(f"   [{novel.novel_id}] 处理耗时: {novel_elapsed:.2f}s")
+                    batch_start = time.time()
+                    asyncio.run(self._process_novels_concurrently(active_novels))
+                    batch_elapsed = time.time() - batch_start
+                    logger.debug(f"   并发处理 {len(active_novels)} 本小说，总耗时: {batch_elapsed:.2f}s")
 
             except Exception as e:
                 logger.error(f"❌ Daemon 顶层异常: {e}", exc_info=True)
@@ -138,6 +137,22 @@ class AutopilotDaemon:
     def _get_active_novels(self) -> List[Novel]:
         """获取所有活跃小说（快速只读）"""
         return self.novel_repository.find_by_autopilot_status(AutopilotStatus.RUNNING.value)
+
+    async def _process_novels_concurrently(self, novels: List[Novel]) -> None:
+        """并发处理所有活跃小说。
+
+        任一本小说抛异常不得中断其他本；异常通过 return_exceptions=True 捕获后由 logger 记录。
+        """
+        results = await asyncio.gather(
+            *(self._process_novel(n) for n in novels),
+            return_exceptions=True,
+        )
+        for novel, result in zip(novels, results):
+            if isinstance(result, Exception):
+                logger.error(
+                    f"❌ [{novel.novel_id}] 并发处理异常: {result}",
+                    exc_info=result,
+                )
 
     def _read_autopilot_status_ephemeral(self, novel_id: NovelId) -> Optional[AutopilotStatus]:
         """用独立 SQLite 连接读 autopilot_status。

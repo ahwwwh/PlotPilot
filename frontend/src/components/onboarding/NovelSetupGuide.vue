@@ -578,7 +578,8 @@ async function startBibleGeneration() {
     // 第1步：只生成世界观和文风
     await bibleApi.generateBible(props.novelId, 'worldbuilding')
     if (biblePollEpoch.value !== epoch || !generatingBible.value) return
-    bibleStatusText.value = '正在生成世界观和文风...'
+    const pollStartedAt = Date.now()
+    bibleStatusText.value = '正在生成世界观和文风...（AI 通常 2–5 分钟）'
 
     const schedulePoll = (delayMs: number) => {
       clearPollTimer()
@@ -627,6 +628,8 @@ async function startBibleGeneration() {
         return
       }
       if (biblePollEpoch.value !== epoch || !generatingBible.value) return
+      const elapsedSec = Math.floor((Date.now() - pollStartedAt) / 1000)
+      bibleStatusText.value = `正在生成世界观和文风...（已等待 ${elapsedSec}s / AI 通常 2–5 分钟）`
       schedulePoll(2000)
     }
 
@@ -635,8 +638,8 @@ async function startBibleGeneration() {
       biblePollEpoch.value += 1
       clearGenerationTimers()
       generatingBible.value = false
-      bibleError.value = '生成超时，请稍后在工作台手动重试'
-    }, 120000)
+      bibleError.value = '生成超时（已等待 5 分钟），请稍后在工作台手动重试'
+    }, 300000)
 
     schedulePoll(0)
   } catch (error: unknown) {
