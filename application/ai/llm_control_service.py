@@ -17,7 +17,7 @@ from infrastructure.ai.url_utils import (
 
 logger = logging.getLogger(__name__)
 
-LLMProtocol = Literal['openai', 'anthropic', 'gemini']
+LLMProtocol = Literal['openai', 'anthropic', 'gemini', 'claude-cli', 'gemini-cli']
 
 
 class LLMPreset(BaseModel):
@@ -378,7 +378,9 @@ class LLMControlService:
                 reason='未找到任何 LLM 配置',
             )
 
-        if not profile.api_key.strip() or not profile.model.strip():
+        _cli_protocols = {'claude-cli', 'gemini-cli'}
+        needs_api_key = profile.protocol not in _cli_protocols
+        if (needs_api_key and not profile.api_key.strip()) or not profile.model.strip():
             return LLMRuntimeSummary(
                 source='mock',
                 active_profile_id=profile.id,
@@ -406,7 +408,9 @@ class LLMControlService:
         llm_service_factory: Callable[[LLMProfile], LLMService],
     ) -> LLMTestResult:
         resolved = self.resolve_profile(profile)
-        if not resolved.api_key.strip() or not resolved.model.strip():
+        _cli_protocols = {'claude-cli', 'gemini-cli'}
+        needs_api_key = resolved.protocol not in _cli_protocols
+        if (needs_api_key and not resolved.api_key.strip()) or not resolved.model.strip():
             return LLMTestResult(
                 ok=False,
                 provider_label=resolved.name,
