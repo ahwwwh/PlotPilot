@@ -7,6 +7,8 @@ from domain.ai.services.llm_service import GenerationConfig, GenerationResult, L
 from domain.ai.value_objects.prompt import Prompt
 from infrastructure.ai.config.settings import Settings
 from infrastructure.ai.providers.anthropic_provider import AnthropicProvider
+from infrastructure.ai.providers.claude_cli_provider import ClaudeCliProvider
+from infrastructure.ai.providers.gemini_cli_provider import GeminiCliProvider
 from infrastructure.ai.providers.gemini_provider import GeminiProvider
 from infrastructure.ai.providers.mock_provider import MockProvider
 from infrastructure.ai.providers.openai_provider import OpenAIProvider
@@ -28,14 +30,21 @@ class LLMProviderFactory:
             return MockProvider()
 
         resolved = self.control_service.resolve_profile(profile)
-        if not resolved.api_key.strip() or not resolved.model.strip():
-            return MockProvider()
+
+        _cli_protocols = {'claude-cli', 'gemini-cli'}
+        if resolved.protocol not in _cli_protocols:
+            if not resolved.api_key.strip() or not resolved.model.strip():
+                return MockProvider()
 
         settings = self._profile_to_settings(resolved)
         if resolved.protocol == 'anthropic':
             return AnthropicProvider(settings)
         if resolved.protocol == 'gemini':
             return GeminiProvider(settings)
+        if resolved.protocol == 'claude-cli':
+            return ClaudeCliProvider(settings)
+        if resolved.protocol == 'gemini-cli':
+            return GeminiCliProvider(settings)
         return OpenAIProvider(settings)
 
     def create_active_provider(self) -> LLMService:

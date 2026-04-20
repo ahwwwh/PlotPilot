@@ -301,6 +301,49 @@ def _ensure_triple_provenance_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_llm_profiles_protocol_constraint(conn: sqlite3.Connection) -> None:
+    """扩展 llm_profiles.protocol CHECK 约束，加入 claude-cli / gemini-cli。
+
+    SQLite 不支持 ALTER TABLE 修改 CHECK，需重建表。幂等：已包含新协议则跳过。
+    """
+    cur = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='llm_profiles'")
+    row = cur.fetchone()
+    if row is None:
+        return
+    if "claude-cli" in row[0]:
+        return  # 已迁移过
+
+    conn.execute("ALTER TABLE llm_profiles RENAME TO llm_profiles_old")
+    conn.execute("""
+        CREATE TABLE llm_profiles (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL DEFAULT '',
+            preset_key TEXT NOT NULL DEFAULT 'custom-openai-compatible',
+            protocol TEXT NOT NULL DEFAULT 'openai'
+                CHECK(protocol IN ('openai', 'anthropic', 'gemini', 'claude-cli', 'gemini-cli')),
+            base_url TEXT NOT NULL DEFAULT '',
+            api_key TEXT NOT NULL DEFAULT '',
+            model TEXT NOT NULL DEFAULT '',
+            temperature REAL NOT NULL DEFAULT 0.7,
+            max_tokens INTEGER NOT NULL DEFAULT 4096,
+            timeout_seconds INTEGER NOT NULL DEFAULT 300,
+            extra_headers TEXT NOT NULL DEFAULT '{}',
+            extra_query TEXT NOT NULL DEFAULT '{}',
+            extra_body TEXT NOT NULL DEFAULT '{}',
+            notes TEXT NOT NULL DEFAULT '',
+            use_legacy_chat_completions INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("INSERT INTO llm_profiles SELECT * FROM llm_profiles_old")
+    conn.execute("DROP TABLE llm_profiles_old")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_profiles_sort ON llm_profiles(sort_order)")
+    conn.commit()
+    logger.info("llm_profiles protocol CHECK constraint migrated to include claude-cli/gemini-cli")
+
+
 class DatabaseConnection:
     """SQLite 数据库连接管理器（线程本地存储，每线程独立连接）"""
 
@@ -333,6 +376,7 @@ class DatabaseConnection:
         _apply_character_enhancements(conn)
         _apply_chapter_summaries_enhancements(conn)
         _ensure_triple_provenance_table(conn)
+        _migrate_llm_profiles_protocol_constraint(conn)
         _apply_migration_files(conn)
         conn.close()
 

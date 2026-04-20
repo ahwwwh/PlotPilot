@@ -24,3 +24,15 @@ try:
     __all__.append("GeminiProvider")
 except ModuleNotFoundError:
     GeminiProvider = None
+
+try:
+    from .claude_cli_provider import ClaudeCliProvider
+    __all__.append("ClaudeCliProvider")
+except ModuleNotFoundError:
+    ClaudeCliProvider = None
+
+try:
+    from .gemini_cli_provider import GeminiCliProvider
+    __all__.append("GeminiCliProvider")
+except ModuleNotFoundError:
+    GeminiCliProvider = None
