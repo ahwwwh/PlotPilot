@@ -367,44 +367,77 @@ class AutopilotDaemon:
             if parent_volume:
                 logger.info(f"[{novel.novel_id}] 🎯 动态生成第 {target_act_number} 幕（父卷：第 {parent_volume.number} 卷）")
                 try:
-                    # 使用最后一个幕作为参考（如果有）
+                    # 循环补齐：create_next_act_auto 按 last_act.number+1 创建，
+                    # 当 novel.current_act 跑在 act_nodes 前面多幕时（历史漂移），
+                    # 单次创建只推进 1 幕仍然找不到 target，需要多轮补齐。
+                    # 每次都走 LLM 开销大，设安全阀：
+                    #  - 小漂移（≤ MAX_FILL）循环补到 target
+                    #  - 大漂移直接降级：把 current_act 拉回 last_act.number，让 daemon 重新对齐
+                    MAX_FILL = 5
+
                     last_act = act_nodes[-1] if act_nodes else None
-                    if last_act:
-                        await self.planning_service.create_next_act_auto(
-                            novel_id=novel_id,
-                            current_act_id=last_act.id
+                    gap = (target_act_number - last_act.number) if last_act else target_act_number
+                    if last_act and gap > MAX_FILL:
+                        logger.warning(
+                            f"[{novel.novel_id}] current_act 与实际幕节点漂移过大："
+                            f"last_act.number={last_act.number} target={target_act_number} gap={gap}，"
+                            f"降级：current_act 拉回 {last_act.number}"
                         )
-                    else:
-                        # 完全没有幕节点，创建第一个幕
-                        logger.info(f"[{novel.novel_id}] 创建首幕")
-                        from domain.structure.story_node import StoryNode, NodeType, PlanningStatus, PlanningSource
-                        first_act = StoryNode(
-                            id=f"act-{novel_id}-1",
-                            novel_id=novel_id,
-                            parent_id=parent_volume.id,
-                            node_type=NodeType.ACT,
-                            number=1,
-                            title="第一幕 · 开端",
-                            description="故事起始，建立世界观与主角目标",
-                            order_index=0,
-                            planning_status=PlanningStatus.CONFIRMED,
-                            planning_source=PlanningSource.AI_MACRO,
-                            suggested_chapter_count=chapters_per_volume // 3,
+                        novel.current_act = last_act.number
+                        novel.current_chapter_in_act = 0
+                        novel.current_stage = NovelStage.WRITING
+                        return
+
+                    for fill_round in range(MAX_FILL):
+                        if last_act:
+                            await self.planning_service.create_next_act_auto(
+                                novel_id=novel_id,
+                                current_act_id=last_act.id
+                            )
+                        else:
+                            # 完全没有幕节点，创建第一个幕
+                            logger.info(f"[{novel.novel_id}] 创建首幕")
+                            from domain.structure.story_node import StoryNode, NodeType, PlanningStatus, PlanningSource
+                            first_act = StoryNode(
+                                id=f"act-{novel_id}-1",
+                                novel_id=novel_id,
+                                parent_id=parent_volume.id,
+                                node_type=NodeType.ACT,
+                                number=1,
+                                title="第一幕 · 开端",
+                                description="故事起始，建立世界观与主角目标",
+                                order_index=0,
+                                planning_status=PlanningStatus.CONFIRMED,
+                                planning_source=PlanningSource.AI_MACRO,
+                                suggested_chapter_count=chapters_per_volume // 3,
+                            )
+                            await self.story_node_repo.save(first_act)
+
+                        # 重新加载
+                        all_nodes = await self.story_node_repo.get_by_novel(novel_id)
+                        act_nodes = sorted(
+                            [n for n in all_nodes if n.node_type.value == "act"],
+                            key=lambda n: n.number
                         )
-                        await self.story_node_repo.save(first_act)
-                    
-                    # 重新加载
-                    all_nodes = await self.story_node_repo.get_by_novel(novel_id)
-                    act_nodes = sorted(
-                        [n for n in all_nodes if n.node_type.value == "act"],
-                        key=lambda n: n.number
-                    )
-                    target_act = next((n for n in act_nodes if n.number == target_act_number), None)
+                        target_act = next((n for n in act_nodes if n.number == target_act_number), None)
+                        if target_act:
+                            if fill_round > 0:
+                                logger.info(f"[{novel.novel_id}] 循环补齐完成：补了 {fill_round + 1} 幕")
+                            break
+                        last_act = act_nodes[-1] if act_nodes else None
                 except Exception as e:
                     logger.warning(f"[{novel.novel_id}] 动态幕生成失败: {e}")
 
             if not target_act:
-                logger.error(f"[{novel.novel_id}] 找不到第 {target_act_number} 幕，且动态生成失败")
+                # 补齐后仍找不到（LLM 失败或返回 number 不递增）——降级退出，下一轮再试
+                last_num = act_nodes[-1].number if act_nodes else 0
+                logger.error(
+                    f"[{novel.novel_id}] 找不到第 {target_act_number} 幕（last_act.number={last_num}），"
+                    f"补齐失败，current_act 拉回 {last_num}"
+                )
+                if act_nodes:
+                    novel.current_act = last_num
+                    novel.current_chapter_in_act = 0
                 novel.current_stage = NovelStage.WRITING
                 return
 
