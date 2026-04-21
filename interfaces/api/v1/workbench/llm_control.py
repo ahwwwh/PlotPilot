@@ -89,6 +89,88 @@ def _normalize_model_items(data: Dict[str, Any]) -> List[ModelItem]:
     return items
 
 
+_CLAUDE_FALLBACK = [
+    'claude-opus-4-7', 'claude-opus-4-5',
+    'claude-sonnet-4-6', 'claude-sonnet-4-5',
+    'claude-haiku-4-5',
+]
+_GEMINI_FALLBACK = [
+    'gemini-3.1-pro-preview', 'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite-preview',
+    'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite',
+]
+
+
+async def _fetch_cli_models(protocol: str) -> ModelListResponse:
+    """CLI provider 动态拉取模型列表：优先走 API Key，退回 CLI subprocess，再退回静态列表。"""
+    import os, asyncio as _aio
+
+    if protocol == 'claude-cli':
+        api_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
+        if api_key:
+            try:
+                async with httpx.AsyncClient(timeout=10, trust_env=False) as c:
+                    r = await c.get(
+                        'https://api.anthropic.com/v1/models',
+                        headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01'},
+                    )
+                    r.raise_for_status()
+                    data = r.json()
+                    ids = [m['id'] for m in data.get('data', []) if m.get('id')]
+                    if ids:
+                        items = [ModelItem(id=i, name=i, owned_by='anthropic') for i in ids]
+                        return ModelListResponse(success=True, items=items, count=len(items))
+            except Exception:
+                pass
+        items = [ModelItem(id=m, name=m, owned_by='anthropic') for m in _CLAUDE_FALLBACK]
+        return ModelListResponse(success=True, items=items, count=len(items))
+
+    # gemini-cli
+    api_key = os.environ.get('GEMINI_API_KEY', '').strip()
+    if api_key:
+        try:
+            async with httpx.AsyncClient(timeout=10, trust_env=False) as c:
+                r = await c.get(
+                    f'https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key={api_key}',
+                )
+                r.raise_for_status()
+                data = r.json()
+                ids = [m['name'].replace('models/', '') for m in data.get('models', []) if m.get('name')]
+                if ids:
+                    items = [ModelItem(id=i, name=i, owned_by='google') for i in sorted(ids)]
+                    return ModelListResponse(success=True, items=items, count=len(items))
+        except Exception:
+            pass
+
+    # 无 API Key：让 gemini CLI 自己报告支持的模型（使用用户配置的默认模型）
+    try:
+        _gemini_cfg = os.path.expanduser('~/.gemini/config.json')
+        _default_model = 'gemini-2.5-pro'
+        if os.path.exists(_gemini_cfg):
+            with open(_gemini_cfg) as _f:
+                _default_model = json.load(_f).get('model', _default_model)
+        proc = await _aio.create_subprocess_exec(
+            'gemini', '--prompt',
+            f'Output ONLY a JSON array of Gemini model IDs available to me, e.g. ["{_default_model}"]. No other text.',
+            '--output-format', 'text', '--yolo', '--model', _default_model,
+            stdout=_aio.subprocess.PIPE, stderr=_aio.subprocess.PIPE,
+        )
+        stdout, _ = await _aio.wait_for(proc.communicate(), timeout=30)
+        text = stdout.decode().strip()
+        # 提取 JSON 数组
+        start, end = text.find('['), text.rfind(']')
+        if start != -1 and end != -1:
+            ids = json.loads(text[start:end + 1])
+            if isinstance(ids, list) and ids:
+                items = [ModelItem(id=str(i), name=str(i), owned_by='google') for i in ids]
+                return ModelListResponse(success=True, items=items, count=len(items))
+    except Exception:
+        pass
+
+    items = [ModelItem(id=m, name=m, owned_by='google') for m in _GEMINI_FALLBACK]
+    return ModelListResponse(success=True, items=items, count=len(items))
+
+
 @router.post('/models', response_model=ModelListResponse)
 async def list_models(payload: ModelListRequest) -> ModelListResponse:
     """根据当前配置的 endpoint 拉取模型列表（OpenAI / Anthropic 兼容）。"""
@@ -100,6 +182,10 @@ async def list_models(payload: ModelListRequest) -> ModelListResponse:
             candidate['api_key'] = active.api_key
 
     api_format = (candidate.get('protocol') or '').strip().lower()
+
+    if api_format in ('claude-cli', 'gemini-cli'):
+        return await _fetch_cli_models(api_format)
+
     api_key = (candidate.get('api_key') or '').strip()
     if not api_key:
         raise HTTPException(status_code=400, detail='API key is required to fetch model list')
@@ -353,7 +439,7 @@ async def export_prompts() -> Dict[str, Any]:
 
     return {
         "_meta": {
-            "version": "1.0.2",
+            "version": "1.0.1",
             "description": "PlotPilot 提示词导出",
             "exported_at": datetime.now().isoformat(),
             "source": "prompt_plaza_export",

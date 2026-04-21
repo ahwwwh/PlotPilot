@@ -1,5 +1,6 @@
 """GeminiCliProvider — 通过本地 gemini CLI (Google OAuth) 调用，无需 API Key"""
 import asyncio
+import os
 import shutil
 from typing import AsyncIterator
 
@@ -29,10 +30,19 @@ class GeminiCliProvider(BaseProvider):
             "--output-format", "text",
             "--yolo",
         )
+        env = os.environ.copy()
+        proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
+        if not proxy:
+            # gemini CLI 是 Node.js，只识别 HTTP 代理（不识别 SOCKS5）
+            env["HTTPS_PROXY"] = "http://127.0.0.1:7897"
+            env["HTTP_PROXY"] = "http://127.0.0.1:7897"
+        # Node.js TLS 有时在 MITM 代理下需要关闭证书验证
+        env.setdefault("NODE_TLS_REJECT_UNAUTHORIZED", "0")
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         try:
             stdout, stderr = await asyncio.wait_for(

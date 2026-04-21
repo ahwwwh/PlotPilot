@@ -91,6 +91,26 @@ class TestClaudeCliProvider:
                 await provider.generate(prompt, config)
 
     @pytest.mark.asyncio
+    async def test_generate_injects_oauth_token_as_api_key(self, settings, prompt, config):
+        """keychain OAuth token 必须以 ANTHROPIC_API_KEY 注入子进程 env（OAuth 直连被 API 拒绝）"""
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            provider = ClaudeCliProvider(settings)
+
+        mock_proc = AsyncMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"ok", b""))
+
+        fake_token = "sk-ant-oat01-FAKE-OAUTH-TOKEN"
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec, \
+             patch("infrastructure.ai.providers.claude_cli_provider._read_oauth_token_from_keychain",
+                   return_value=fake_token):
+            await provider.generate(prompt, config)
+
+        kwargs = mock_exec.call_args.kwargs
+        assert "env" in kwargs, "必须传 env 给子进程"
+        assert kwargs["env"].get("ANTHROPIC_API_KEY") == fake_token
+
+    @pytest.mark.asyncio
     async def test_stream_generate_yields_full_content(self, settings, prompt, config):
         with patch("shutil.which", return_value="/usr/bin/claude"):
             provider = ClaudeCliProvider(settings)
