@@ -17,9 +17,18 @@ class StoryNodeRepository:
         self.db_path = db_path
 
     def _get_connection(self) -> sqlite3.Connection:
-        """获取数据库连接"""
-        conn = sqlite3.connect(self.db_path)
+        """获取数据库连接。
+
+        注意：本仓储的 save_sync/update/save_batch 走独立 sqlite3.connect，
+        不复用 DatabaseConnection 的线程局部连接池。必须在这里同步设置
+        WAL + busy_timeout，否则多本小说并发写时（autopilot daemon asyncio.gather）
+        一本持写锁，另一本的动态幕生成会立刻抛 'database is locked'，导致
+        真并发机制形同虚设（第二本永远在排队/失败）。
+        """
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
