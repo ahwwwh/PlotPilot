@@ -390,6 +390,9 @@ class DatabaseConnection:
             self._local.connection.execute("PRAGMA journal_mode=WAL")
             # 与 API/守护进程并发写时延长等待（毫秒）
             self._local.connection.execute("PRAGMA busy_timeout=30000")
+            # 限制 WAL 文件上限为 64MB，防止 daemon 长期写入时无限膨胀
+            # （实测曾涨到 1.9GB，崩溃恢复耗时 + 磁盘占用双重风险）
+            self._local.connection.execute("PRAGMA journal_size_limit=67108864")
         return self._local.connection
 
     @contextmanager

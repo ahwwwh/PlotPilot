@@ -317,6 +317,12 @@ def _run_daemon_in_process(
         logger.info("🚀 守护进程已启动（独立进程），开始轮询...")
         
         while not stop_event.is_set():
+            breaker_wait = _daemon_circuit_breaker_wait_seconds(daemon)
+            if breaker_wait is not None:
+                logger.warning("⚠️  熔断器打开，暂停 %.0fs", breaker_wait)
+                stop_event.wait(timeout=min(breaker_wait, daemon.poll_interval))
+                continue
+
             try:
                 # 执行守护进程的一个轮询周期
                 active_novels = daemon._get_active_novels()
@@ -348,6 +354,13 @@ def _run_daemon_in_process(
             logger.error(f"❌ 守护进程初始化失败: {e}", exc_info=True)
     finally:
         logger.info("🛑 守护进程已停止")
+
+
+def _daemon_circuit_breaker_wait_seconds(daemon) -> float | None:
+    breaker = getattr(daemon, "circuit_breaker", None)
+    if breaker and breaker.is_open():
+        return breaker.wait_seconds()
+    return None
 
 
 def _start_autopilot_daemon_thread():

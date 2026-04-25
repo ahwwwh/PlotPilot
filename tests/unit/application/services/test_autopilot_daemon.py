@@ -83,3 +83,38 @@ async def test_process_novels_concurrently_isolates_exceptions():
     await daemon._process_novels_concurrently(novels)
 
     assert set(processed_ids) == {"novel-ok-1", "novel-ok-2"}
+
+
+@pytest.mark.asyncio
+async def test_process_novel_persists_error_status_after_failure_threshold():
+    """连续失败达到阈值后必须把单本小说挂起为 ERROR，不能被 DB 中旧 RUNNING 覆盖。"""
+    repo = Mock()
+    daemon = AutopilotDaemon(
+        novel_repository=repo,
+        llm_service=Mock(),
+        context_builder=None,
+        background_task_service=Mock(),
+        planning_service=Mock(),
+        story_node_repo=Mock(),
+        chapter_repository=Mock(),
+    )
+    daemon._read_autopilot_status_ephemeral = Mock(return_value=AutopilotStatus.RUNNING)
+    daemon._handle_writing = AsyncMock(side_effect=RuntimeError("invalid api key"))
+
+    novel = Novel(
+        id=NovelId("novel-error-threshold"),
+        title="连续失败测试",
+        author="作者",
+        target_chapters=10,
+        autopilot_status=AutopilotStatus.RUNNING,
+        current_stage=NovelStage.WRITING,
+        consecutive_error_count=2,
+    )
+
+    await daemon._process_novel(novel)
+
+    assert novel.consecutive_error_count == 3
+    assert novel.autopilot_status == AutopilotStatus.ERROR
+    repo.save.assert_called_once()
+    saved_novel = repo.save.call_args.args[0]
+    assert saved_novel.autopilot_status == AutopilotStatus.ERROR

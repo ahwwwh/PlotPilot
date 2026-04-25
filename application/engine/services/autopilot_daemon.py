@@ -188,7 +188,11 @@ class AutopilotDaemon:
     def _merge_autopilot_status_from_db(self, novel: Novel) -> None:
         """用户点「停止」只改 DB；写库前必须合并，否则会覆盖 STOPPED。"""
         status = self._read_autopilot_status_ephemeral(novel.novel_id)
-        if status is not None:
+        if status is None:
+            return
+        if novel.autopilot_status == AutopilotStatus.RUNNING:
+            novel.autopilot_status = status
+        elif status == AutopilotStatus.STOPPED:
             novel.autopilot_status = status
 
     def _is_still_running(self, novel: Novel) -> bool:
@@ -1513,4 +1517,3 @@ class AutopilotDaemon:
         
         except Exception as e:
             logger.warning(f"[{novel.novel_id}] 摘要生成失败: {e}")
-
