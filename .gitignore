@@ -155,3 +155,8 @@ mcps/
 *.rs.bk
 *.orig
 *.rej
+.git_data.nosync/
+
+# nosync directories (iCloud isolation)
+node_modules_data.nosync/
+.git_data.nosync/
