@@ -1,7 +1,4 @@
-"""兼容层 — engine.domain.value_objects
-
-⚠️ 已废弃，请使用: from engine.core.value_objects import ...
-"""
+"""引擎内核值对象包"""
 from engine.core.value_objects.checkpoint import Checkpoint, CheckpointId, CheckpointType
 from engine.core.value_objects.emotion_ledger import (
     EmotionLedger, EmotionalWound, EmotionalBoon, PowerShift, OpenLoop,
