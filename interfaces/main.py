@@ -2,6 +2,8 @@
 
 提供 RESTful API 接口。
 """
+from __future__ import annotations
+
 # 必须在任何 HuggingFace/Transformers 导入前设置离线模式
 import os
 os.environ['HF_HUB_OFFLINE'] = '1'
@@ -644,6 +646,13 @@ def _init_dag_node_registry():
         logger.info(f"✅ DAG 节点注册表已初始化: {sorted(NodeRegistry.all_types())}")
     except Exception as e:
         logger.warning(f"⚠️ DAG 节点注册表初始化失败（DAG 引擎将不可用）: {e}")
+
+
+def _daemon_circuit_breaker_wait_seconds(daemon) -> float | None:
+    breaker = getattr(daemon, "circuit_breaker", None)
+    if breaker and breaker.is_open():
+        return breaker.wait_seconds()
+    return None
 
 
 def _start_autopilot_daemon_thread():
